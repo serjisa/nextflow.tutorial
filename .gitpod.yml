@@ -22,9 +22,6 @@ image: ghcr.io/nextflow-io/training:latest
 tasks:
     - before: printf 'unset JAVA_TOOL_OPTIONS\n' >> $HOME/.bashrc && exit
 
-    - name: Start web server
-      command: gp ports await 23000 && gp preview https://training.nextflow.io
-
     - name: Load Nextflow Tutorial
       command: docker pull -q nextflow/rnaseq-nf
 
