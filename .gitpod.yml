@@ -25,18 +25,18 @@ tasks:
     - name: Load Nextflow Tutorial
       command: docker pull -q nextflow/rnaseq-nf
 
+    - name: Install additional packages
+      command: |
+          sudo apt-get -y install fastqc bowtie2 samtools
+          pip install multiqc ffq
+          clear
+          
     - name: Start Nextflow Tutorial
       command: |
           cd nextflow.tutorial
           source $HOME/.bashrc
           export PS1='\[\e[3;36m\]${PWD/*\//} ->\[\e[0m\] '
           unset JAVA_TOOL_OPTIONS
-
-    - name: Install additional packages
-      command: |
-          sudo apt-get -y install fastqc bowtie2 samtools
-          pip install multiqc ffq
-          clear
     
 vscode:
     extensions: # based on nf-core.nf-core-extensionpack
