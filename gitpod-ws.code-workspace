@@ -1,6 +1,6 @@
 {
     "folders": [
-        { "path": "./nf-training" }
+        { "path": "./nextflow.tutorial" }
     ],
     "settings": {
         "typescript.tsdk": "gitpod/node_modules/typescript/lib",
