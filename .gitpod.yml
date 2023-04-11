@@ -21,15 +21,11 @@ image: ghcr.io/nextflow-io/training:latest
 
 tasks:
     - before: printf 'unset JAVA_TOOL_OPTIONS\n' >> $HOME/.bashrc && exit
-
-    - name: Load Nextflow Tutorial
-      command: docker pull -q nextflow/rnaseq-nf
-
-    - name: Install additional packages
-      command: sudo apt-get -y install fastqc bowtie2 samtools && pip install multiqc ffq
           
     - name: Start Nextflow Tutorial
       command: |
+          sudo apt-get -y install fastqc bowtie2 samtools
+          pip install multiqc ffq
           cd nextflow.tutorial
           source $HOME/.bashrc
           export PS1='\[\e[3;36m\]${PWD/*\//} ->\[\e[0m\] '
