@@ -17,24 +17,24 @@
 ```Groovy
 #!/usr/bin/env nextflow
 
-params.SRA = "SRR11816045"
-params.results_dir = "results/"
+params.sra = "SRR11816045"
+params.output = "results/"
 
 log.info ""
 log.info "  Q U A L I T Y   C O N T R O L  "
 log.info "================================="
-log.info "SRA number         : ${params.SRA}"
-log.info "Results location   : ${params.results_dir}"
+log.info "SRA number         : ${params.sra}"
+log.info "Results location   : ${params.output}"
 ```
 
 Дальше вы можете сделать скрипт исполняемым при помощи команды `chmod +x my_pipeline.nf` и запускать его напрямую (благодаря первой строчке скрипта Linux поймёт, что необходимо использовать Nextflow для исполнения этого скрипта).
 
-Пока что в нём не описано никаких процессов и workflow, однако на этом примере можно разобрать, в каком формате вы можете передавать аргументы командной строки. Запустите этот скрипт без каких-либо аргументов, а потом передайте аргументы `--SRA SRR11815971` и `--results_dir output/`. Что поменялось?
+Пока что в нём не описано никаких процессов и workflow, однако на этом примере можно разобрать, в каком формате вы можете передавать аргументы командной строки. Запустите этот скрипт без каких-либо аргументов, а потом передайте аргументы `--sra SRR11815971` и `--output output/`. Что поменялось?
 
-Теперь добавим один простой процесс, который будет принимать на вход SRA-идентификатор и возвращать прямую ссылку на скачивание прочтений.
+Теперь добавим один простой процесс, который будет принимать на вход SRA-идентификатор и возвращать прямые ссылки на скачивание прочтений.
 
 ```Groovy
-process GetLink {
+process GetLinks {
   input:
     val sra
   
@@ -43,8 +43,116 @@ process GetLink {
 
   script:
     """
-    links=$(ffq --ftp ${sra} | jq -r '.[] | .url' | tr '\n' ' ')
+    links=\$(ffq --ftp ${sra} | jq -r '.[] | .url' | tr '\n' ' ')
     """
+}
+
+workflow {
+  sra_ch = Channel.from( params.sra )
+  GetLinks( sra_ch ) | view
+}
+```
+
+Теперь при исполнении этого скрипта у нас будут выводиться прямые ссылки на скачивание файлов. Можно добавить ещё один процесс (и модифицировать workflow) таким образом, чтобы эти ссылки загружались при помощи `wget`:
+
+```Groovy
+process DownloadLinks {
+  publishDir "${params.output}"
+
+  input:
+    val links
+
+  script:
+    """
+    wget ${links}
+    """
+}
+
+workflow {
+  sra_ch = Channel.from( params.sra )
+  GetLinks( sra_ch )
+  DownloadLinks( GetLinks.out )
+}
+```
+
+Также часто бывает, что нам необходимо процессировать сразу несколько экспериментов. Тогда можно поступить следующим образом: передавать в аргумент `--sra` список идентификаторов, разделённых запятыми, после чего создавать канал из листа, который образуется после разделения этого аргумента по запятым. В итоге итоговый пайплайн будет выглядеть следующим образом:
+
+```Groovy
+#!/usr/bin/env nextflow
+
+params.sra = "SRR11816045"
+ArrayList sra = params.sra.split(",")
+params.output = "results/"
+
+log.info ""
+log.info "  Q U A L I T Y   C O N T R O L  "
+log.info "================================="
+log.info "SRA number         : ${sra}"
+log.info "Results location   : ${params.output}"
+
+process GetLinks {
+  input:
+    val sra
+  
+  output:
+    env links
+
+  script:
+    """
+    links=\$(ffq --ftp ${sra} | jq -r '.[] | .url' | tr '\n' ' ')
+    """
+}
+
+process DownloadLinks {
+  publishDir "${params.output}"
+
+  input:
+    val links
+
+  script:
+    """
+    wget ${links}
+    """
+}
+
+workflow {
+  sra_ch = Channel.from( sra )
+  GetLinks( sra_ch )
+  DownloadLinks( GetLinks.out )
+}
+```
+
+Nextflow создан для того, чтобы работать с биологическими данными, а потому там встроен ряд функций, которые облегчают жизнь в сценариях типа нашего. Вместо того, чтобы парсить ссылки на скачивание прочтений при помощи `ffq`, мы можем использовать встроенный функционал в виде `Channel.fromSRA`:
+
+```Groovy
+#!/usr/bin/env nextflow
+
+params.sra = "SRR11816045"
+ArrayList sra = params.sra.split(",")
+params.output = "results/"
+
+log.info ""
+log.info "  Q U A L I T Y   C O N T R O L  "
+log.info "================================="
+log.info "SRA number         : ${sra}"
+log.info "Results location   : ${params.output}"
+
+process DownloadLinks {
+  publishDir "${params.output}"
+
+  input:
+    tuple val(sample_id), path(links)
+
+  script:
+    """
+    echo "Files will be downloaded automatically."
+    """
+}
+
+
+workflow {
+  sra_ch = Channel.fromSRA(sra)
+  DownloadLinks( sra_ch )
 }
 ```
 
