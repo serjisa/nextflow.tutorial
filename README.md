@@ -14,6 +14,9 @@
 ## Nextflow
 Для первого знакомства с Nextflow создадим некоторое подобие Hello, world!-скрипта. Для этого необходимо создать файл `my_pipeline.nf` со следующим содержимым:
 
+<details>
+<summary><b>Скрипт</b></summary>
+  
 ```Groovy
 #!/usr/bin/env nextflow
 
@@ -21,11 +24,14 @@ params.sra = "SRR11816045"
 params.output = "results/"
 
 log.info ""
-log.info "  Q U A L I T Y   C O N T R O L  "
-log.info "================================="
-log.info "SRA number         : ${params.sra}"
-log.info "Results location   : ${params.output}"
+log.info "   W G S    A L I G N M E N T   "
+log.info "================================"
+log.info "SRA IDs              : ${params.sra}"
+log.info "Output directory     : ${params.output}"
+log.info ""
 ```
+  
+</details>
 
 Дальше вы можете сделать скрипт исполняемым при помощи команды `chmod +x my_pipeline.nf` и запускать его напрямую (благодаря первой строчке скрипта Linux поймёт, что необходимо использовать Nextflow для исполнения этого скрипта).
 
@@ -33,6 +39,9 @@ log.info "Results location   : ${params.output}"
 
 Теперь добавим один простой процесс, который будет принимать на вход SRA-идентификатор и возвращать прямые ссылки на скачивание прочтений.
 
+<details>
+<summary><b>Скрипт</b></summary>
+  
 ```Groovy
 process GetLinks {
   input:
@@ -52,9 +61,14 @@ workflow {
   GetLinks( sra_ch ) | view
 }
 ```
+  
+</details>
 
 Теперь при исполнении этого скрипта у нас будут выводиться прямые ссылки на скачивание файлов. Можно добавить ещё один процесс (и модифицировать workflow) таким образом, чтобы эти ссылки загружались при помощи `wget`:
 
+<details>
+<summary><b>Скрипт</b></summary>
+  
 ```Groovy
 process DownloadLinks {
   publishDir "${params.output}"
@@ -74,21 +88,27 @@ workflow {
   DownloadLinks( GetLinks.out )
 }
 ```
+  
+</details>
 
 Также часто бывает, что нам необходимо процессировать сразу несколько экспериментов. Тогда можно поступить следующим образом: передавать в аргумент `--sra` список идентификаторов, разделённых запятыми, после чего создавать канал из листа, который образуется после разделения этого аргумента по запятым. В итоге итоговый пайплайн будет выглядеть следующим образом:
 
+<details>
+<summary><b>Скрипт</b></summary>
+  
 ```Groovy
 #!/usr/bin/env nextflow
 
 params.sra = "SRR11816045"
-ArrayList sra = params.sra.split(",")
 params.output = "results/"
+ArrayList sra = params.sra.split(",")
 
 log.info ""
-log.info "  Q U A L I T Y   C O N T R O L  "
-log.info "================================="
-log.info "SRA number         : ${sra}"
-log.info "Results location   : ${params.output}"
+log.info "   W G S    A L I G N M E N T   "
+log.info "================================"
+log.info "SRA IDs              : ${sra}"
+log.info "Output directory     : ${params.output}"
+log.info ""
 
 process GetLinks {
   input:
@@ -121,21 +141,27 @@ workflow {
   DownloadLinks( GetLinks.out )
 }
 ```
+  
+</details>
 
 Nextflow создан для того, чтобы работать с биологическими данными, а потому там встроен ряд функций, которые облегчают жизнь в сценариях типа нашего. Вместо того, чтобы парсить ссылки на скачивание прочтений при помощи `ffq`, мы можем использовать встроенный функционал в виде `Channel.fromSRA` (а так же того факта, что при передаче ссылки в виде аргумента типа `path` файлы будут загружены автоматически):
 
+<details>
+<summary><b>Скрипт</b></summary>
+  
 ```Groovy
 #!/usr/bin/env nextflow
 
 params.sra = "SRR11816045"
-ArrayList sra = params.sra.split(",")
 params.output = "results/"
+ArrayList sra = params.sra.split(",")
 
 log.info ""
-log.info "  Q U A L I T Y   C O N T R O L  "
-log.info "================================="
-log.info "SRA number         : ${sra}"
-log.info "Results location   : ${params.output}"
+log.info "   W G S    A L I G N M E N T   "
+log.info "================================"
+log.info "SRA IDs              : ${sra}"
+log.info "Output directory     : ${params.output}"
+log.info ""
 
 process DownloadLinks {
   publishDir "${params.output}"
@@ -155,6 +181,11 @@ workflow {
   DownloadLinks( sra_ch )
 }
 ```
+  
+</details>
+
+#### Задание
+Напишите процесс пайплайна, который будет брать на вход ссылку на референсный геном, а потом делать из него индекс для bowtie2 (команда `bowtie2-build`).
 
 ## Docker
 Тут будет часть про Docker
