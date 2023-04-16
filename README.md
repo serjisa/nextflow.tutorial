@@ -139,7 +139,7 @@ process DownloadLinks {
     tuple val(sample_id), path(links)
   
   output:
-    path links
+    path "${links}"
 
   script:
     """
