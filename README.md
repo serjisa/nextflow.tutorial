@@ -62,6 +62,9 @@ process DownloadLinks {
 
   input:
     val links
+    
+  output:
+    path "${links}"
 
   script:
     """
@@ -113,6 +116,9 @@ process DownloadLinks {
 
   input:
     val links
+    
+  output:
+    path "${links}"
 
   script:
     """
@@ -150,7 +156,7 @@ process DownloadLinks {
 
 
 workflow {
-  sra_ch = Channel.fromSRA(sra)
+  sra_ch = Channel.fromSRA( sra )
   DownloadLinks( sra_ch )
 }
 ```
