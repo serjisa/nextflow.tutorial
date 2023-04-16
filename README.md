@@ -139,11 +139,12 @@ process DownloadLinks {
     tuple val(sample_id), path(links)
   
   output:
-    path "${links}"
+    path "${sample_id}"
 
   script:
     """
-    echo "Files will be downloaded automatically."
+    mkdir ${sample_id}
+    mv ${links} ${sample_id}
     """
 }
 
