@@ -23,7 +23,7 @@ params.output = "results/"
 log.info ""
 log.info "   W G S    A L I G N M E N T   "
 log.info "================================"
-log.info "SRA IDs              : ${sra}"
+log.info "SRA IDs              : ${params.sra}"
 log.info "Output directory     : ${params.output}"
 log.info ""
 ```
@@ -37,14 +37,14 @@ log.info ""
 ```Groovy
 process GetLinks {
   input:
-    val sra
+    val sra_id
   
   output:
     env links
 
   script:
     """
-    links=\$(ffq --ftp ${sra} | jq -r '.[] | .url' | tr '\n' ' ')
+    links=\$(ffq --ftp ${sra_id} | jq -r '.[] | .url' | tr '\n' ' ')
     """
 }
 
@@ -64,7 +64,7 @@ process DownloadLinks {
     val links
     
   output:
-    path "${links}"
+    path "*.fastq.gz"
 
   script:
     """
@@ -84,7 +84,7 @@ workflow {
 ```Groovy
 #!/usr/bin/env nextflow
 
-params.sra = "SRR11816045"
+params.sra = "SRR11816045,SRR11815971"
 params.output = "results/"
 ArrayList sra = params.sra.split(",")
 
@@ -97,14 +97,14 @@ log.info ""
 
 process GetLinks {
   input:
-    val sra
+    val sra_id
   
   output:
-    env links
+    tuple val(sra_id), env(links)
 
   script:
     """
-    links=\$(ffq --ftp ${sra} | jq -r '.[] | .url' | tr '\n' ' ')
+    links=\$(ffq --ftp ${sra_id} | jq -r '.[] | .url' | tr '\n' ' ')
     """
 }
 
@@ -112,14 +112,14 @@ process DownloadLinks {
   publishDir "${params.output}"
 
   input:
-    val links
+    tuple val(sra_id), val(links)
     
   output:
-    path "${links}"
+    path "${sra_id}"
 
   script:
     """
-    wget ${links}
+    mkdir ${sra_id} && cd ${sra_id} && wget ${links}
     """
 }
 
@@ -151,18 +151,186 @@ process DownloadLinks {
 
 
 workflow {
-  sra_ch = Channel.fromSRA( sra )
+  sra_ch = Channel.fromSRA( sra, apiKey:"<NCBI_API_KEY>" )
   DownloadLinks( sra_ch )
 }
 ```
 
-> #### Задание
-> Напишите процесс пайплайна, который будет брать на вход ссылку на референсный геном, а потом делать из него индекс для bowtie2 (команда `bowtie2-build`).
+#### Задание
+Напишите скрипт, который будет брать на вход ссылку на референсный геном, а потом делать из него индекс для bowtie2 (команда `bowtie2-build`).
+
+<details>
+  <summary><b>Решение</b></summary>
+  
+  ```Groovy
+  #!/usr/bin/env nextflow
+
+  params.genome = "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
+  params.output = "results/"
+
+  log.info ""
+  log.info "   W G S    A L I G N M E N T   "
+  log.info "================================"
+  log.info "Genome link          : ${params.genome}"
+  log.info "Output directory     : ${params.output}"
+  log.info ""
+
+  process BuildIndex {
+    publishDir "${params.output}"
+
+    input:
+      path genome_link
+
+    output:
+      path "index"
+
+    script:
+      """
+      if [[ "${genome_link}" == *.gz ]]
+      then
+          gunzip -c ${genome_link} > genome.fasta
+      else
+          mv ${genome_link} genome.fasta
+      fi
+      mkdir index
+      bowtie2-build genome.fasta index/index
+      """
+  }
+
+
+  workflow {
+    genome_ch = Channel.from( params.genome )
+    BuildIndex( genome_ch )
+  }
+  ```
+  
+</details>
 
 Для того, чтобы получить на выход .html-репорт об исполнении пайплайна, необходимо добавить аргумент `-with-report <report-name.html>`, а для отрисовки графа связи процессов пайплайна, — аргумент `-with-dag <graph-name.pdf>`.
 
 #### Задание
+Найдите скрипт `mapping_pipeline.nf` и оптимизируйте его с использованием `Channel.fromSRA`, автоматической загрузки исполняемых файлов и так же директивы `cpus`.
 
+<details>
+  <summary><b>Решение</b></summary>
+  
+  ```Groovy
+  #!/usr/bin/env nextflow
+
+  params.sra = "SRR11816045,SRR11815971"
+  params.genome_link = "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
+  params.n_cores = 4
+  params.output = "results/"
+
+  ArrayList sra = params.sra.split(",")
+
+  log.info ""
+  log.info "   W G S    A L I G N M E N T   "
+  log.info "================================"
+  log.info "SRA IDs              : ${sra}"
+  log.info "Genome link          : ${params.genome_link}"
+  log.info "Number of cores      : ${params.n_cores}"
+  log.info "Output directory     : ${params.output}"
+  log.info ""
+
+  process BuildIndex {
+    input:
+      path genome
+
+    output:
+      path "index"
+
+    script:
+      """
+      if [[ "${genome}" == *.gz ]]
+      then
+          gunzip -c ${genome} > genome.fasta
+      else
+          mv ${genome} genome.fasta
+      fi
+      mkdir index
+      bowtie2-build genome.fasta index/index
+      """
+  }
+
+  process DownloadReads {
+    input:
+      tuple val(sample_id), path(reads)
+
+    output:
+      path "${sample_id}"
+
+    script:
+      """
+      mkdir ${sample_id}
+      mv ${reads} ${sample_id}/
+      """
+  }
+
+  process FastQC {
+    input:
+      path sample_id
+
+    output:
+      path "${sample_id}/fastqc/*"
+
+    script:
+      """
+      mkdir ${sample_id}/fastqc
+      fastqc --noextract -o ${sample_id}/fastqc ${sample_id}/*.fastq.gz
+      """
+  }
+
+  process Mapping {
+    cpus params.n_cores
+
+    publishDir "${params.output}"
+
+    input:
+      path index
+      path sample_id
+
+    output:
+      path "${sample_id}"
+
+    script:
+      """
+      bowtie2 --no-unal -p ${params.n_cores} -x ${index}/index \
+          -1 ${sample_id}/*_1.fastq.gz -2 ${sample_id}/*_2.fastq.gz \
+          -S ${sample_id}/${sample_id}.sam 2> ${sample_id}/${sample_id}.log
+      samtools view -bS \
+          ${sample_id}/${sample_id}.sam > ${sample_id}/${sample_id}.bam
+      rm ${sample_id}/${sample_id}.sam
+      """
+  }
+
+  process MultiQC {
+    publishDir "${params.output}"
+
+    input:
+      path alignments
+      path fastqc
+
+    output:
+      path "multiqc_report.html"
+
+    script:
+      """
+      multiqc .
+      """
+  }
+
+  workflow {
+    sra_ch = Channel.fromSRA( sra, apiKey:"<NCBI_API_KEY>" )
+    BuildIndex( params.genome_link )
+    DownloadReads( sra_ch )
+    FastQC( DownloadReads.out )
+    Mapping( BuildIndex.out, DownloadReads.out )
+    MultiQC( Mapping.out.collect(), FastQC.out.collect() )
+  }
+  ```
+  
+</details>
 
 ## Docker
 Тут будет часть про Docker
