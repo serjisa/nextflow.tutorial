@@ -333,6 +333,217 @@ workflow {
 </details>
 
 ## Docker
-Тут будет часть про Docker
+Docker — это система контейнеризации, которая позволяет использовать образы, подобные виртуальным машинам. Это позволяет повысить удобство пользования инструментами, а также увеличивает воспроизводимость результатов. Взаимодействие с Docker на базовом уровне примерно такое же, как и с любой программой. Необходимо набрать команду `docker run <image> <command> <arguments>`. Так же можно запустить Docker в интерактивном режиме, что по механике взаимодействия будет подобно тому, что вы запустили другую ОС при помощи терминала. Попробуем зайти в образ с SRA-Tools:
+```Shell
+docker run -it ncbi/sra-tools
+```
+Теперь мы видим перед нами командную строку, в которой мы можем набрать команду для загрузки прочтений:
+```Shell
+fastq-dump --gzip --split-3 SRR11816045
+```
+В результате у нас загрузятся прочтения из этого SRA-эксперимента. Важно заметить, что SRA-Tools не установлены в системе, с которой мы работаем. Для выхода из контейнера можно воспользоваться командой `exit`. После вызова контейнера он оказывается в локальном репозитории. Все доступные контейнеры можно посмотреть при помощи команды `docker images`. Удалить контейнер можно при помощи команды `docker rmi --force <IMAGE_ID>`.
+
+Попробуем не заходить в Docker, а вызвать следующую команду:
+
+```Shell
+docker run ncbi/sra-tools fastq-dump --gzip --split-3 SRR11816045
+```
+
+Кажется, что ничего не произошло, однако это не так — внутри контейнера началась загрузка файлов (которые, правда, так и остались внутри контейнера). Для того, чтобы иметь доступ к файлам в контейнере (а также передавать файлы в контейнер), необходимо примонтировать директорию, которая будет коммуницировать между вашей файловой системой и контейнером.
+
+```Shell
+mkdir reads
+cd reads
+docker run --volume $PWD:$PWD --workdir $PWD ncbi/sra-tools \
+    fastq-dump --gzip --split-3 --outdir $PWD SRR11816045
+```
+
+Теперь вы видите, что загрузка происходит в директорию, в которой вы находитесь (`reads`). Использование контейнеров очень сильно помогает в случаях, когда программа требует большое количество зависимостей (попробуйте запустить без контейнеров [BUSCO](https://busco.ezlab.org)).
+
+### Dockerfile
+Для того, чтобы сделать собственный Docker-образ, необходимо сделать `Dockerfile`, а после этого на его основе сконструировать образ при помощи команды `docker build -t <IMAGE_NAME> .`. Пример Dockerfile, при помощи которого можно построить контейнер, содержащий все программы из сегодняшнего семинара:
+
+```dockerfile
+# An initial image will be based on Ubuntu 18.04
+FROM ubuntu:18.04
+
+# We can add info about the maintainer of the image
+MAINTAINER Sergey Isaev <serj.hoop@gmail.com>
+
+# Install packages and tools via apt
+RUN apt-get update && apt-get install --yes --no-install-recommends \
+    make jq gcc libpq-dev wget curl locales vim-tiny git cmake \
+    build-essential gcc-multilib perl python3 python3-pip locales-all \
+    libbz2-dev zlib1g-dev libncurses5-dev libncursesw5-dev \
+    liblzma-dev gzip zip unzip fastqc samtools python3-setuptools \
+    python-dev python3-dev python3-venv python3-wheel bowtie2
+ 
+# Install Python packages
+RUN python3 -m pip install -U --force-reinstall pip
+RUN python3 -m pip install wheel ffq multiqc
+
+# Setting up language parameters
+RUN sed -i -e "s/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/" /etc/locale.gen && \
+    dpkg-reconfigure --frontend=noninteractive locales && \
+    update-locale LANG=en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
+```
+
+#### Задание
+Попробуйте на основе докер-образа с сегодняшнего занятия (`sisaev64/nextflow-tutorial:0.1.1`) сделать образ с программой Salmon (`apt-get install salmon`). 
+
+<details>
+  <summary><b>Решение</b></summary>
+  
+  ```dockerfile
+  FROM sisaev64/nextflow-tutorial:0.1.1
+  RUN apt-get install --yes --no-install-recommends salmon
+  ```
+  
+</details>
 
 ### Использование Docker в Nextflow
+Существует два сценария использования Docker в Nextflow.
+
+В первом случае вы можете заранее создать образ со всеми необходимыми инструментами, после чего запустить Nextflow с флагом `-with-docker <IMAGE_NAME>`.
+
+Во втором случае вы можете использовать образы для каждого из процессов пайплайна, тогда необходимо в начале процесса явно прописать название образа, который в нём используется:
+```Groovy
+process foo {
+  container "${container_name}"
+}
+```
+
+#### Задание
+Добавьте в каждый из элементов пайплайна, который мы сделали на занятие, свой контейнер (найдите контейнеры, находящиеся в открытом доступе). Протестируйте работу пайплайна с этими контейнерами.
+
+<details>
+  <summary><b>Решение</b></summary>
+  
+  ```Groovy
+  #!/usr/bin/env nextflow
+
+  params.sra = "SRR11816045"
+  params.genome_link = "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
+  params.n_cores = 4
+  params.output = "results/"
+
+  ArrayList sra = params.sra.split(",")
+
+  log.info ""
+  log.info "   W G S    A L I G N M E N T   "
+  log.info "================================"
+  log.info "SRA IDs              : ${sra}"
+  log.info "Genome link          : ${params.genome_link}"
+  log.info "Number of cores      : ${params.n_cores}"
+  log.info "Output directory     : ${params.output}"
+  log.info ""
+
+  process BuildIndex {
+    container "biocontainers/bowtie2:v2.4.1_cv1"
+
+    input:
+      path genome
+
+    output:
+      path "index"
+
+    script:
+      """
+      if [[ "${genome}" == *.gz ]]
+      then
+          gunzip -c ${genome} > genome.fasta
+      else
+          mv ${genome} genome.fasta
+      fi
+      mkdir index
+      bowtie2-build genome.fasta index/index
+      """
+  }
+
+  process DownloadReads {
+    input:
+      tuple val(sample_id), path(reads)
+
+    output:
+      path "${sample_id}"
+
+    script:
+      """
+      mkdir ${sample_id}
+      mv ${reads} ${sample_id}/
+      """
+  }
+
+  process FastQC {
+    container "biocontainers/fastqc:v0.11.9_cv8"
+
+    input:
+      path sample_id
+
+    output:
+      path "${sample_id}/fastqc/*"
+
+    script:
+      """
+      mkdir ${sample_id}/fastqc
+      fastqc --noextract -o ${sample_id}/fastqc ${sample_id}/*.fastq.gz
+      """
+  }
+
+  process Mapping {
+    container "biocontainers/bowtie2:v2.4.1_cv1"
+
+    cpus params.n_cores
+
+    publishDir "${params.output}"
+
+    input:
+      path index
+      path sample_id
+
+    output:
+      path "${sample_id}"
+
+    script:
+      """
+      bowtie2 --no-unal -p ${params.n_cores} -x ${index}/index \
+          -1 ${sample_id}/*_1.fastq.gz -2 ${sample_id}/*_2.fastq.gz \
+          -S ${sample_id}/${sample_id}.sam 2> ${sample_id}/${sample_id}.log
+      samtools view -bS \
+          ${sample_id}/${sample_id}.sam > ${sample_id}/${sample_id}.bam
+      rm ${sample_id}/${sample_id}.sam
+      """
+  }
+
+  process MultiQC {
+    container "staphb/multiqc:1.8"
+
+    publishDir "${params.output}"
+
+    input:
+      path alignments
+      path fastqc
+
+    output:
+      path "multiqc_report.html"
+
+    script:
+      """
+      multiqc .
+      """
+  }
+
+  workflow {
+    sra_ch = Channel.fromSRA( sra, apiKey:"41c04bd6385a2dca753ada0eb22f54f7d309" )
+    BuildIndex( params.genome_link )
+    DownloadReads( sra_ch )
+    FastQC( DownloadReads.out )
+    Mapping( BuildIndex.out, DownloadReads.out )
+    MultiQC( Mapping.out.collect(), FastQC.out.collect() )
+  }
+  ```
+  
+</details>
