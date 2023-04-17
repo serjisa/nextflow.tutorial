@@ -6,7 +6,7 @@
 ### Организация семинара
 Мы будем работать на платформе [Gitpod](https://www.gitpod.io), поэтому для начала обеспечьте себе там рабочий аккаунт. После того, как вы создадите аккаунт, перейдите по [ссылке](https://gitpod.io/#https://github.com/serjisa/nextflow.tutorial) и подождите, пока все необходимые дополнения установятся на виртуальную машину.
 
-<img href="https://gitpod.io/#https://github.com/serjisa/nextflow.tutorial" src="https://img.shields.io/badge/Gitpod-%20Open%20in%20Gitpod-908a85?logo=gitpod">
+<a href="https://gitpod.io/#https://github.com/serjisa/nextflow.tutorial"><img src="https://img.shields.io/badge/Gitpod-%20Open%20in%20Gitpod-908a85?logo=gitpod"></a>
 
 ### Почему не Google Colab?
 Потому что функционал Google Colab, к сожалению, не позволяет использовать Docker. Однако если вы хотите поработать с Nextflow без контейнеров, то вы в целом можете воспользоваться Google Colab, семинар с использованием Nextflow в Google Colab вы можете найти [здесь](https://github.com/serjisa/transcriptomics.msu/blob/main/Семинары/01_Базовая_работа_с_прочтениями.ipynb).
