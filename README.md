@@ -537,7 +537,7 @@ process foo {
   }
 
   workflow {
-    sra_ch = Channel.fromSRA( sra, apiKey:"41c04bd6385a2dca753ada0eb22f54f7d309" )
+    sra_ch = Channel.fromSRA( sra, apiKey:"<NCBI_API_KEY>" )
     BuildIndex( params.genome_link )
     DownloadReads( sra_ch )
     FastQC( DownloadReads.out )
